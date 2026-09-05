@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - uses: actions/setup-java@v4
         with:
@@ -33,25 +33,16 @@ jobs:
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
         run: npx vite build
 
-      - name: Debug state before cap sync
+      - name: Debug on failure
+        if: failure()
         run: |
           {
             echo "== pwd =="; pwd
             echo "== node/npm =="; node -v; npm -v
-            echo "== root ls =="; ls -la
             echo "== dist ls =="; ls -la dist 2>&1 || echo "NO DIST"
-            echo "== dist/index.html =="; test -f dist/index.html && echo "EXISTS" || echo "MISSING"
-            echo "== capacitor.config.ts =="; cat capacitor.config.ts
-            echo "== cap cli version =="; npx cap --version
-            echo "== node_modules/.bin/cap =="; ls -la node_modules/.bin/cap 2>&1 || echo "missing"
           } > /tmp/debug.txt 2>&1
-          cat /tmp/debug.txt
-
-      - name: Post debug info to issue
-        if: always()
-        run: |
           python3 -c "
-          import json, os, urllib.request
+          import json, urllib.request
           body = open('/tmp/debug.txt').read()
           payload = json.dumps({'title': 'Debug run ${{ github.run_id }}', 'body': '\`\`\`\n' + body + '\n\`\`\`'}).encode()
           req = urllib.request.Request(
