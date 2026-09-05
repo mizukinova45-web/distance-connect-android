@@ -33,17 +33,21 @@ jobs:
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
         run: npx vite build
 
-      - name: Debug on failure
+      - run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace > /tmp/gradle.log 2>&1 || (tail -c 60000 /tmp/gradle.log && exit 1)
+
+      - name: Post debug info to issue
         if: failure()
         run: |
-          {
-            echo "== pwd =="; pwd
-            echo "== node/npm =="; node -v; npm -v
-            echo "== dist ls =="; ls -la dist 2>&1 || echo "NO DIST"
-          } > /tmp/debug.txt 2>&1
           python3 -c "
           import json, urllib.request
-          body = open('/tmp/debug.txt').read()
+          try:
+              body = open('/tmp/gradle.log').read()[-60000:]
+          except FileNotFoundError:
+              body = 'no gradle.log'
           payload = json.dumps({'title': 'Debug run ${{ github.run_id }}', 'body': '\`\`\`\n' + body + '\n\`\`\`'}).encode()
           req = urllib.request.Request(
               'https://api.github.com/repos/${{ github.repository }}/issues',
@@ -52,12 +56,6 @@ jobs:
           )
           print(urllib.request.urlopen(req).read().decode())
           "
-
-      - run: npx cap sync android
-
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
