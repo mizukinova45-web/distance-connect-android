@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +32,35 @@ jobs:
         env:
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
         run: npx vite build
+
+      - name: Debug state before cap sync
+        run: |
+          {
+            echo "== pwd =="; pwd
+            echo "== node/npm =="; node -v; npm -v
+            echo "== root ls =="; ls -la
+            echo "== dist ls =="; ls -la dist 2>&1 || echo "NO DIST"
+            echo "== dist/index.html =="; test -f dist/index.html && echo "EXISTS" || echo "MISSING"
+            echo "== capacitor.config.ts =="; cat capacitor.config.ts
+            echo "== cap cli version =="; npx cap --version
+            echo "== node_modules/.bin/cap =="; ls -la node_modules/.bin/cap 2>&1 || echo "missing"
+          } > /tmp/debug.txt 2>&1
+          cat /tmp/debug.txt
+
+      - name: Post debug info to issue
+        if: always()
+        run: |
+          python3 -c "
+          import json, os, urllib.request
+          body = open('/tmp/debug.txt').read()
+          payload = json.dumps({'title': 'Debug run ${{ github.run_id }}', 'body': '\`\`\`\n' + body + '\n\`\`\`'}).encode()
+          req = urllib.request.Request(
+              'https://api.github.com/repos/${{ github.repository }}/issues',
+              data=payload, method='POST',
+              headers={'Authorization': 'Bearer ${{ secrets.GITHUB_TOKEN }}', 'Accept': 'application/vnd.github+json'}
+          )
+          print(urllib.request.urlopen(req).read().decode())
+          "
 
       - run: npx cap sync android
 
