@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -61,3 +61,17 @@ jobs:
         with:
           name: app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK as Release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          REPO="${{ github.repository }}"
+          RELEASE_JSON=$(curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"APK build $TAG\",\"body\":\"Automated debug APK build\"}")
+          UPLOAD_URL=$(echo "$RELEASE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['upload_url'].split('{')[0])")
+          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @android/app/build/outputs/apk/debug/app-debug.apk \
+            "$UPLOAD_URL?name=app-debug.apk"
